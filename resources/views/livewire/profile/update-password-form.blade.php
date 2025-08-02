@@ -52,7 +52,7 @@ new class extends Component
     <form wire:submit="updatePassword" class="mt-6 space-y-6">
         <div>
             <x-input-label for="update_password_current_password" :value="__('Current Password')" />
-            <x-password-input model="current.password" id="update_password_current_password" name="current_password" required autocomplete="current-password"/>
+            <x-password-input model="current_password" id="update_password_current_password" name="current_password" required autocomplete="current-password"/>
             <x-input-error :messages="$errors->get('current_password')" class="mt-2" />
         </div>
 

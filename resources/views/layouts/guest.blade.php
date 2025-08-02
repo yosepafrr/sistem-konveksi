@@ -42,11 +42,7 @@
         </div>
 
         <div class="mt-6 text-center text-gray-500 text-xs">
-            ©
-            <script>
-                document.write(new Date().getFullYear())
-            </script>
-            Dashboard Konveksi - Ramdani Konveksi
+            © {{ date('Y') }} Dashboard Konveksi - Ramdani Konveksi
         </div>
     </div>
 </body>
