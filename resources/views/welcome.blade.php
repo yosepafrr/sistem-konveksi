@@ -16,14 +16,14 @@
 </head>
 
 <body class="antialiased font-sans bg-[#f2f4f8]">
-    <div class="mt-7 rounded-xl mx-32 2xl:mx-96 shadow-2xl text-black/50 dark:bg-black dark:text-white/50 bg-cover bg-no-repeat bg-center"
+    <div class="mt-7 rounded-xl mx-5 sm:mx-32 2xl:mx-96 shadow-2xl text-black/50 dark:bg-black dark:text-white/50 bg-cover bg-no-repeat bg-center"
         style="background-image: url('{{ asset('landing-page-assets/bg.png') }}')">
                 <main>
-                    <div class="flex justify-between flex-col lg:flex-row h-[85vh]">
-                        <div class="flex mt-24 md:mt-2 lg:mt-0 items-center justify-center lg:max-w-7xl">
+                    <div class="flex justify-between flex-col lg:flex-row mt-24 h-[50vh]  md:mt-16 md:h-[70vh] 2xl:mt-0 2xl:h-[85vh]">
+                        <div class="flex mt-16 sm:mt-5 md:mt-10 lg:mt-0 items-center justify-center lg:max-w-7xl">
                             <img class="w-auto" src="{{ asset('landing-page-assets/2.png') }}" alt="illustration">
                         </div>
-                        <div class="bg-white dark:bg-gray-800 p-6 min-w-[45%] min-h-[40%]  lg:rounded-tr-xl  2xl:min-w-[35%] shadow-l-sm">
+                        <div class="bg-white dark:bg-gray-800 rounded-b-lg lg:rounded-b-none p-6 min-w-[45%] min-h-[40%]  lg:rounded-tr-xl  2xl:min-w-[35%] shadow-l-sm">
                             @if (Route::has('login'))
                                 <livewire:welcome.navigation />
                                 <h1 class="text-2xl mt-5 text-gray-600"><strong>Wilujeng Sumping !</strong></h1>
