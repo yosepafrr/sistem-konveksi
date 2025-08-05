@@ -19,12 +19,24 @@
         :class="sidebarCollapsed
             ? '{{ $active ? 'bg-indigo-900 text-indigo-200 hover:bg-indigo-950' : 'hover:bg-gray-200 text-gray-700' }}'
             : '{{ $active ? 'border-r-2 border-indigo-500 font-bold bg-gray-200' : 'hover:bg-gray-200 text-gray-700' }}'"
-        class="{{ $baseClass }}"      
-        >  
+        class="{{ $baseClass }}">
+        
         <div class="flex items-center space-x-3 font-bold">
             <span class=" material-symbols-rounded">{{ $icon }}</span>
             <span x-show="!sidebarCollapsed" class="transition-all duration-200">{{ $label }}</span>
         </div>
+
+        {{-- TOOLTIP --}}
+        {{-- <div
+            x-show="sidebarCollapsed"
+            x-cloak
+            class="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2.5 py-1.5
+                bg-black text-white text-xs font-medium rounded shadow-md
+                opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-10">
+            {{ $label }}
+        </div> --}}
+        {{-- TOOLTIP --}}
+
 
         @if($hasSubmenu)
             <span x-show="!sidebarCollapsed" class="material-symbols-rounded transition-transform duration-200"

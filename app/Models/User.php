@@ -6,6 +6,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\Store; // pastikan import model Store
+/**
+ * @property \Illuminate\Database\Eloquent\Collection|\App\Models\Store[] $stores
+ */
 
 class User extends Authenticatable
 {
@@ -45,4 +50,10 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function stores(): HasMany
+    {
+        return $this->hasMany(Store::class, 'user_id');
+    }
+
 }

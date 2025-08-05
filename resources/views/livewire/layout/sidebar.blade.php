@@ -24,8 +24,10 @@
                 <p class="text-xs text-gray-500 dark:text-gray-400">Ramdani Konveksi</p>
             </div>
         </div>
-        <a href="#" @click.prevent="toggleSidebar" :class="sidebarCollapsed ? 'mb-1.5' : 'mb-5'" class="mb-5 py-1 px-2 hover:bg-gray-200 rounded-lg ">
-            <span class="material-symbols-rounded text-2xl text-gray-600">dock_to_left</span>
+        <a href="#" @click.prevent="toggleSidebar" :class="sidebarCollapsed ? 'mb-1.5' : 'mb-5'"
+            class="mb-5 py-1 px-2 hover:bg-gray-200 rounded-lg ">
+            <span class="material-symbols-rounded text-2xl text-gray-600"
+                x-text="sidebarCollapsed ? 'dock_to_left' : 'dock_to_right'"></span>
         </a>
     </div>
     <hr class="mb-4">
@@ -39,14 +41,28 @@
 
     {{-- FINANCE --}}
     <x-side-link label="Finance" icon="finance_mode" href="'#'" :active="request()->routeIs('orders.*')"
-        :hasSubmenu=true> <x-side-link :active="request()->routeIs('dashboard')" label="List Order" icon="list"
-            href="{{ route('dashboard') }}" />
-        <x-side-link :active="request()->routeIs('profile')" label="Create Order" icon="add"
+        :hasSubmenu=true> <x-side-link :active="request()->routeIs('profit.tracker')" label="Profit Tracker" icon="paid"
+            href="{{ route('profit.tracker') }}" />
+        <x-side-link :active="request()->routeIs('profile')" label="Cashflow" icon="currency_exchange"
             href="{{ route('profile') }}" />
     </x-side-link>
 
     {{-- ORDERS --}}
     <x-side-link label="Orders" icon="shopping_bag" href="'#'" :active="request()->routeIs('orders.*')"
+        :hasSubmenu=true> <x-side-link :active="request()->routeIs('dashboard')" label="List Order" icon="list"
+            href="{{ route('dashboard') }}" />
+        <x-side-link :active="request()->routeIs('profile')" label="Create Order" icon="add"
+            href="{{ route('profile') }}" />
+        <x-side-link :active="request()->routeIs('profile')" label="Create Order" icon="add"
+            href="{{ route('profile') }}" />
+        <x-side-link :active="request()->routeIs('profile')" label="Create Order" icon="add"
+            href="{{ route('profile') }}" />
+        <x-side-link :active="request()->routeIs('profile')" label="Create Order" icon="add"
+            href="{{ route('profile') }}" />
+    </x-side-link>
+
+    {{-- SHOPS --}}
+    <x-side-link label="Stores" icon="store" href="'#'" :active="request()->routeIs('orders.*')"
         :hasSubmenu=true> <x-side-link :active="request()->routeIs('dashboard')" label="List Order" icon="list"
             href="{{ route('dashboard') }}" />
         <x-side-link :active="request()->routeIs('profile')" label="Create Order" icon="add"
