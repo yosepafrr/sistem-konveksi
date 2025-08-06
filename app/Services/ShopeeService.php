@@ -24,9 +24,10 @@ class ShopeeService
 
     public function ensureValidToken(Store $store)
     {
-        if (Carbon::now('Asia/Jakarta')->gte($store->token_expired_at)) {
-            $this->refreshAccessToken($store);
-        }
+        //     if (Carbon::now('Asia/Jakarta')->gte($store->token_expired_at)) {
+        //         $this->refreshAccessToken($store);
+        //     }
+        $this->refreshAccessToken($store);
 
         return $store->access_token;
     }
@@ -37,10 +38,11 @@ class ShopeeService
         $timestamp = time();
 
         $shopId = trim($store->shopee_shop_id);
-        $refreshToken = trim($store->refresh_token);
+        $refreshToken = (int)$store->refresh_token;
 
-        $baseString = $this->partnerId . $path . $timestamp . $refreshToken . $shopId;
-        $sign = hash_hmac('sha256', $baseString, $this->partnerKey);
+        $baseString = $this->partnerId . $path . $timestamp . $refreshToken;
+        $sign = hash_hmac('sha256', $baseString, $this->partnerKey, false);
+
 
         $url = "https://openplatform.sandbox.test-stable.shopee.sg{$path}"
             . "?partner_id={$this->partnerId}"
@@ -79,6 +81,7 @@ class ShopeeService
 
         Log::debug('Shopee base string', ['base_string' => $baseString]);
         Log::debug('Shopee partner key', ['partner_key' => $this->partnerKey]);
+        Log::debug('Sign', ['sign' => $sign]);
         Log::error('Shopee - Failed to refresh access token', ['response' => $response->body()]);
         return false;
     }
@@ -126,7 +129,6 @@ class ShopeeService
     {
         $shop_id = $store->shopee_shop_id;
         $access_token = $store->access_token;
-        $order_sn_list_json = json_encode($orderSnList);
 
         $path = "/api/v2/order/get_order_detail";
         $timestamp = time();
@@ -140,9 +142,34 @@ class ShopeeService
             'sign' => $sign,
             'shop_id' => $shop_id,
             'access_token' => $access_token,
-            'order_sn_list' => implode(',', $orderSnList), // JSON-encoded array!
+            'order_sn_list' => implode(',', $orderSnList),
         ]);
 
         return json_decode($response->getBody(), true);
+    }
+
+    public function getEscrowDetail($store, $orderSnList)
+    {
+        $shop_id = $store->shopee_shop_id;
+        $access_token = $store->access_token;
+
+        $path = '/api/v2/payment/get_escrow_detail';
+        $timestamp = time();
+        $base_string = $this->partnerId . $path . $timestamp . $access_token . $shop_id;
+        $sign = hash_hmac('sha256', $base_string, $this->partnerKey);
+
+        $response = Http::get('https://openplatform.sandbox.test-stable.shopee.sg/api/v2/payment/get_escrow_detail', [
+            'partner_id' => $this->partnerId,
+            'timestamp' => $timestamp,
+            'sign' => $sign,
+            'shop_id' => $shop_id,
+            'access_token' => $access_token,
+            'order_sn' => $orderSnList,
+        ]);
+        Log::info('Escrow Response', ['body' => $response->body()]);
+
+
+
+        return $response->json();
     }
 }

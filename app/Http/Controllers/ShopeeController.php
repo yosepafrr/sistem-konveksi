@@ -24,7 +24,7 @@ class ShopeeController extends Controller
         $baseString = $partnerId . $path . $timestamp;
         $sign = hash_hmac('sha256', $baseString, $partnerKey);
 
-        $redirectUrl = 'https://ac5e7a3666d8.ngrok-free.app/shopee/callback'; // pastikan ini terdaftar di Shopee developer dashboard
+        $redirectUrl = 'https://00cb695ac9c3.ngrok-free.app/shopee/callback'; // pastikan ini terdaftar di Shopee developer dashboard
         $url = "https://openplatform.sandbox.test-stable.shopee.sg{$path}"
             . "?partner_id={$partnerId}"
             . "&timestamp={$timestamp}"
@@ -159,12 +159,22 @@ class ShopeeController extends Controller
 
                     if (isset($detailsResponse['response']['order_list'])) {
                         foreach ($detailsResponse['response']['order_list'] as $detail) {
+                            $escrowResponse = $shopee->getEscrowDetail($store, $detail['order_sn']);
+                            $escrow = $escrowResponse['response'] ?? [];
+
                             // Update kembali dengan detail pesanan
                             \App\Models\Order::where('order_sn', $detail['order_sn'])
                                 ->update([
                                     'order_status'    => $detail['order_status'] ?? null,
                                     'order_time'      => isset($detail['create_time']) ? Carbon::createFromTimestamp($detail['create_time']) : now(),
-                                    'updated_at'      => Carbon::now()->timezone('Asia/Jakarta'),
+                                    'ship_by_date'      => isset($detail['ship_by_date']) ? Carbon::createFromTimestamp($detail['ship_by_date']) : now(),
+                                    'message_to_seller' => $detail['message_to_seller'] ?? null,
+                                    'updated_at'      => isset($detail['updated_at']) ? Carbon::createFromTimestamp($detail['updated_at']) : Carbon::now()->timezone('Asia/Jakarta'),
+
+                                    // escrow fields
+                                    'order_selling_price' => $escrow['order_income']['order_selling_price'] ?? null,
+                                    'escrow_amount'=> $escrow['order_income']['escrow_amount'] ?? null,
+                                    'escrow_amount_after_adjustment'=> $escrow['order_income']['escrow_amount_after_adjusment'] ?? null,
                                 ]);
                         }
                     }
@@ -181,6 +191,8 @@ class ShopeeController extends Controller
         return response()->json([
             'total_orders' => count($allOrders),
             'orders' => $allOrders,
+            'order_detail' => $detail,
+            'escrow' => $escrow,
         ]);
     }
 }
