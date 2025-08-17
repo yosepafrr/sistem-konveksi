@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Carbon\Carbon;
 use App\Models\Store;
+use App\Models\Product;
 use Illuminate\Http\Request;
 use App\Services\ShopeeService;
 use Illuminate\Support\Facades\Log;
@@ -24,7 +25,7 @@ class ShopeeController extends Controller
         $baseString = $partnerId . $path . $timestamp;
         $sign = hash_hmac('sha256', $baseString, $partnerKey);
 
-        $redirectUrl = 'https://00cb695ac9c3.ngrok-free.app/shopee/callback'; // pastikan ini terdaftar di Shopee developer dashboard
+        $redirectUrl = 'https://725be3788caf.ngrok-free.app/shopee/callback'; // pastikan ini terdaftar di Shopee developer dashboard
         $url = "https://openplatform.sandbox.test-stable.shopee.sg{$path}"
             . "?partner_id={$partnerId}"
             . "&timestamp={$timestamp}"
@@ -34,7 +35,7 @@ class ShopeeController extends Controller
         return redirect($url);
     }
 
-    public function handleShopeeCallback(Request $request)
+    public function handleShopeeCallback(Request $request, ShopeeService $shopee)
     {
         $partnerId = config('shopee.partner_id');
         $partnerKey = config('shopee.partner_key');
@@ -42,7 +43,7 @@ class ShopeeController extends Controller
         $path = '/api/v2/auth/token/get';
 
         $code = $request->query('code');
-        $shopId = $data['shop_id_list'][0] ?? null;
+        $shopId = $shopData['shop_id_list'][0] ?? null;
 
         Log::info('Shopee Callback', ['code' => $code, 'shop_id' => $shopId]);
 
@@ -69,36 +70,98 @@ class ShopeeController extends Controller
         Log::info('Shopee - Response:', $result);
 
         // Simpan data token jika berhasil
-        $data = $result;
+        $shopData = $result;
 
-        if ($data && !empty($data['shop_id_list'])) {
-            $shopId = $data['shop_id_list'][0];
-            Log::info('Shopee - Saving Store Data', ['shop_id' => $shopId, 'data' => $data]);
+        if ($shopData && !empty($shopData['shop_id_list'])) {
+            $shopId = $shopData['shop_id_list'][0];
+            Log::info('Shopee - Saving Store Data', ['shop_id' => $shopId, 'data' => $shopData]);
 
-            Auth::user()->stores()->updateOrCreate(
+            $accessToken = $result['access_token'];
+            $refreshToken = $result['refresh_token'];
+            $tokenExpiredAt = Carbon::createFromTimestamp($result['expire_in'] + $timestamp)
+                ->setTimezone('Asia/Jakarta');
+
+
+            $store = new Store();
+            $store->shopee_shop_id = $shopId;
+            $store->access_token = $accessToken;
+
+            $shopInfo = $shopee->getShopProfile($store);
+            Log::info('Shopee - Shop Info:', $shopInfo);
+
+            $shopInfo = $shopee->getShopProfile($store);
+
+            $store =  Auth::user()->stores()->updateOrCreate(
                 ['shopee_shop_id' => $shopId],
                 [
-                    'platform' => 'Shopee',
-                    'store_name' => $data['shop_name'] ?? 'Toko Shopee',
-                    'access_token' => $data['access_token'],
-                    'refresh_token' => $data['refresh_token'],
-                    'token_expired_at' => Carbon::createFromTimestamp($data['expire_in'] + $timestamp)
-                        ->setTimezone('Asia/Jakarta'),
+                    'platform'              => 'Shopee',
+                    'store_name'            => $shopInfo['shop_name'] ?? 'Toko Shopee',
+                    'access_token'          => $accessToken,
+                    'refresh_token'         => $refreshToken,
+                    'token_expired_at'      => $tokenExpiredAt,
                 ]
             );
 
-            return redirect()->route('profit.tracker')->with('success', 'Toko Shopee berhasil terhubung.');
-        }
+            $itemList = $shopee->getItemList($store);
+            Log::info('Item List Response:', ['item_list' => $itemList]);
+            if (empty($itemList)) {
+                Log::warning('Toko belum punya produk atau item list kosong');
+                return;
+            }
 
-        return response()->json([
-            'message' => 'Gagal menghubungkan toko',
-            'debug' => [
-                'url' => $url,
-                'sign' => $sign,
-                'base_string' => $baseString,
-                'response' => $result
-            ]
-        ], 400);
+
+            $itemIds = collect($itemList)->pluck('item_id')->take(20)->toArray();
+            Log::info('Item IDs to fetch:', ['item_id_list' => $itemIds]);
+
+            $itemDetails = $shopee->getItemBaseInfo($store, $itemIds);
+
+            Log::info('Raw data item detail', ['data' => $itemDetails]);
+
+
+            if (empty($itemDetails)) {
+                Log::warning('Item base info kosong untuk item_id_list', $itemIds);
+            } else {
+                foreach ($itemDetails as $item) {
+                    try {
+                        Product::updateOrCreate(
+                            [
+                                'item_id' => $item['item_id'],
+                                'store_id' => $store->id,
+                            ],
+                            [
+                                'item_name'  => $item['item_name'] ?? 'Unknown',
+                                'image'      => $item['promotion_image']['image_url_list'][0] ?? null,
+                                'price'      => $item['price_info'][0]['current_price'] ?? 0,
+                                'item_sku'   => $item['item_sku'] ?? null,
+                                'item_status' => $item['item_status'] ?? null,
+                                'stock'      => $item['stock_info_v2']['summary_info']['total_available_stock'] ?? 0,
+                                'category'   => $item['category_id'] ?? null,
+                            ]
+                        );
+                        Log::info("Produk {$item['item_id']} berhasil disimpan");
+                    } catch (\Throwable $e) {
+                        Log::error('Gagal simpan produk Shopee', [
+                            'error' => $e->getMessage(),
+                            'trace' => $e->getTraceAsString(),
+                            'data' => $item
+                        ]);
+                    }
+                }
+            }
+            return redirect()->route('profit.tracker')->with('success', 'Toko Shopee berhasil terhubung.');
+
+            // return response()->json([
+            //     'message' => 'Gagal menghubungkan toko',
+            //     'debug' => [
+            //         'url'           => $url,
+            //         'sign'          => $sign,
+            //         'base_string'   => $baseString,
+            //         'response'      => $result,
+            //         'item_list' => $itemList,
+            //         'item_details' => $itemDetails
+            //     ]
+            // ], 400);
+        }
     }
 
     // AMBIL PESANAN SELAMA 3 BULAN KEBELAKANG
@@ -143,10 +206,10 @@ class ShopeeController extends Controller
                     \App\Models\Order::updateOrCreate(
                         ['order_sn' => $order['order_sn']],
                         [
-                            'booking_sn' => $order['booking_sn'] ?? null,
-                            'store_id' => $store->id,
-                            'created_at' => now(),
-                            'updated_at' => now(),
+                            'booking_sn'    => $order['booking_sn'] ?? null,
+                            'store_id'      => $store->id,
+                            'created_at'    => now(),
+                            'updated_at'    => now(),
                         ]
                     );
                 }
@@ -162,19 +225,30 @@ class ShopeeController extends Controller
                             $escrowResponse = $shopee->getEscrowDetail($store, $detail['order_sn']);
                             $escrow = $escrowResponse['response'] ?? [];
 
+                            $itemId = null;
+                            $product = Product::where('item_name', $detail['item_list'][0]['item_name'] ?? '')
+                            ->orWhere('item_sku', $detail['item_list'][0]['item_sku'] ??'')
+                            ->first();
+                            $itemId = $product->item_id ?? null;
+
                             // Update kembali dengan detail pesanan
                             \App\Models\Order::where('order_sn', $detail['order_sn'])
                                 ->update([
-                                    'order_status'    => $detail['order_status'] ?? null,
-                                    'order_time'      => isset($detail['create_time']) ? Carbon::createFromTimestamp($detail['create_time']) : now(),
+                                    'order_status'      => $detail['order_status'] ?? null,
+                                    'order_time'        => isset($detail['create_time']) ? Carbon::createFromTimestamp($detail['create_time']) : now(),
+                                    'cod'               => $detail['cod'] ?? null,
                                     'ship_by_date'      => isset($detail['ship_by_date']) ? Carbon::createFromTimestamp($detail['ship_by_date']) : now(),
                                     'message_to_seller' => $detail['message_to_seller'] ?? null,
-                                    'updated_at'      => isset($detail['updated_at']) ? Carbon::createFromTimestamp($detail['updated_at']) : Carbon::now()->timezone('Asia/Jakarta'),
+                                    'updated_at'        => isset($detail['updated_at']) ? Carbon::createFromTimestamp($detail['updated_at']) : Carbon::now()->timezone('Asia/Jakarta'),
 
                                     // escrow fields
                                     'order_selling_price' => $escrow['order_income']['order_selling_price'] ?? null,
-                                    'escrow_amount'=> $escrow['order_income']['escrow_amount'] ?? null,
-                                    'escrow_amount_after_adjustment'=> $escrow['order_income']['escrow_amount_after_adjusment'] ?? null,
+                                    'escrow_amount' => $escrow['order_income']['escrow_amount'] ?? null,
+                                    'escrow_amount_after_adjustment' => $escrow['order_income']['escrow_amount_after_adjusment'] ?? null,
+                                    'quantity_purchased' => $escrow['order_income']['items'][0]['quantity_purchased'] ?? null,
+
+                                    // item
+                                    'item_id' => $itemId,
                                 ]);
                         }
                     }
@@ -187,12 +261,13 @@ class ShopeeController extends Controller
             sleep(1); // hindari rate limit
         }
 
+        // return redirect(route('profit.tracker'));
 
         return response()->json([
-            'total_orders' => count($allOrders),
-            'orders' => $allOrders,
-            'order_detail' => $detail,
-            'escrow' => $escrow,
+            'total_orders'      => count($allOrders),
+            'orders'            => $allOrders,
+            'order_detail'      => $detail,
+            'escrow'            => $escrow,
         ]);
     }
 }

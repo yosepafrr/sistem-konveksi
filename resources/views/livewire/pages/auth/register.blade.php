@@ -10,34 +10,29 @@ use Livewire\Volt\Component;
 
 new #[Layout('layouts.guest')] class extends Component
 {
-    public string $name = '';
-    public string $email = '';
-    public string $password = '';
-    public string $password_confirmation = '';
+    public $name = '';
+    public $email = '';
+    public $password = '';
+    public $password_confirmation = '';
 
-    /**
-     * Handle an incoming registration request.
-     */
-    public function register(): void
+    public function register()
     {
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'confirmed', Rules\Password::defaults()],
         ]);
 
         $validated['password'] = Hash::make($validated['password']);
 
         event(new Registered($user = User::create($validated)));
-
         Auth::login($user);
-
         $this->redirect(route('dashboard', absolute: false), navigate: true);
     }
 }; ?>
 
 <div>
-    <form wire:submit="register">
+    <form wire:submit.prevent="register">
         <!-- Name -->
         <div>
             <x-input-label for="name" :value="__('Name')" />
@@ -56,7 +51,7 @@ new #[Layout('layouts.guest')] class extends Component
         <div class="mt-4">
             <x-input-label for="password" :value="__('Password')" />
 
-            <x-password-input wire:model="password" id="password" class="block w-full"
+            <x-password-input model="password" id="password" class="block w-full"
                             type="password"
                             name="password"
                             required autocomplete="new-password" />
@@ -68,7 +63,7 @@ new #[Layout('layouts.guest')] class extends Component
         <div class="mt-4">
             <x-input-label for="password_confirmation" :value="__('Confirm Password')" />
 
-            <x-password-input wire:model="password_confirmation" id="password_confirmation" class="block w-full"
+            <x-password-input model="password_confirmation" id="password_confirmation" class="block w-full"
                             type="password"
                             name="password_confirmation" required autocomplete="new-password" />
 

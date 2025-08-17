@@ -32,10 +32,35 @@ class ShopeeService
         return $store->access_token;
     }
 
+    // FUNGSI AMBIL INFORMASI TOKO
+    public function getShopProfile(Store $store)
+    {
+        $shop_id = $store->shopee_shop_id;
+        $access_token = $store->access_token;
+
+        $path = '/api/v2/shop/get_shop_info';
+        $timestamp = time();
+        $base_string = $this->partnerId . $path . $timestamp . $access_token . $shop_id;
+        $sign = hash_hmac('sha256', $base_string, $this->partnerKey);
+
+        $url = "https://openplatform.sandbox.test-stable.shopee.sg{$path}";
+        $params = [
+            'partner_id' => $this->partnerId,
+            'timestamp' => $timestamp,
+            'sign' => $sign,
+            'shop_id' => $shop_id,
+            'access_token' => $access_token,
+        ];
+
+        $response = Http::get($url, $params);
+        return $response->json();
+    }
+
+    // FUNGSI REFRESH ACCESS TOKEN
     public function refreshAccessToken(Store $store)
     {
         $path = '/api/v2/auth/access_token/get';
-        $timestamp = time();
+        $timestamp = Carbon::now()->timestamp;
 
         $shopId = trim($store->shopee_shop_id);
         $refreshToken = (int)$store->refresh_token;
@@ -93,6 +118,7 @@ class ShopeeService
         return hash_hmac('sha256', $baseString, $this->partnerKey);
     }
 
+    // AMBIL DATA LIST ORDER
     public function getOrderList(string $accessToken, string $shopId, int $timeFrom, int $timeTo)
     {
         $timestamp = time();
@@ -125,6 +151,7 @@ class ShopeeService
         return $response->json();
     }
 
+    // AMBIL DATA DETAIL ORDER
     public function getOrderDetails($store, $orderSnList)
     {
         $shop_id = $store->shopee_shop_id;
@@ -148,6 +175,7 @@ class ShopeeService
         return json_decode($response->getBody(), true);
     }
 
+    // AMBIL DATA UANG SETELAH DIPOTONG
     public function getEscrowDetail($store, $orderSnList)
     {
         $shop_id = $store->shopee_shop_id;
@@ -167,9 +195,76 @@ class ShopeeService
             'order_sn' => $orderSnList,
         ]);
         Log::info('Escrow Response', ['body' => $response->body()]);
-
-
-
         return $response->json();
+    }
+
+    // AMBIL DATA PRODUCT
+    public function getItemList($store)
+    {
+        $shopId = $store->shopee_shop_id;
+        $accessToken = $store->access_token;
+
+        $timestamp = time();
+        $path = '/api/v2/product/get_item_list';
+        $sign = $this->generateSign($path, $timestamp, $accessToken, $shopId);
+
+        // Build URL lengkap dengan query string
+        $url = "https://openplatform.sandbox.test-stable.shopee.sg{$path}"
+            . "?partner_id={$this->partnerId}"
+            . "&timestamp={$timestamp}"
+            . "&sign={$sign}"
+            . "&access_token={$accessToken}"
+            . "&shop_id={$shopId}"
+            . "&offset=0"
+            . "&page_size=100"
+            . "&item_status=NORMAL"
+            . "&item_status=BANNED"
+            . "&item_status=UNLIST"
+            . "&item_status=REVIEWING"
+            . "&item_status=SELLER_DELETE"
+            . "&item_status=SHOPEE_DELETE"
+            ;
+
+        // Logging detail untuk debugging
+        Log::info('Shopee - Fetching Item List', ['url' => $url]);
+        Log::info('Shopee - Params', [
+            'partner_id' => $this->partnerId,
+            'shop_id' => $shopId,
+            'access_token' => $accessToken,
+            'sign' => $sign,
+            'timestamp' => $timestamp,
+        ]);
+
+        $response = Http::get($url);
+        $result = $response->json();
+
+        Log::info('Item List Response', $result);
+
+        return $result['response']['item'] ?? [];
+    }
+
+    public function getItemBaseInfo($store, array $itemIds)
+    {
+        $shop_id = $store->shopee_shop_id;
+        $access_token = $store->access_token;
+
+        $path = '/api/v2/product/get_item_base_info';
+        $timestamp = time();
+        $base_string = $this->partnerId . $path . $timestamp . $access_token . $shop_id;
+        $sign = hash_hmac('sha256', $base_string, $this->partnerKey);
+
+        $response = Http::get('https://openplatform.sandbox.test-stable.shopee.sg/api/v2/product/get_item_base_info', [
+            'partner_id' => $this->partnerId,
+            'timestamp' => $timestamp,
+            'sign' => $sign,
+            'shop_id' => $shop_id,
+            'access_token' => $access_token,
+            'item_id_list' => implode(',', $itemIds),
+        ]);
+
+        $result = $response->json();
+        Log::info('Item Base Info', ['body' => $result]);
+
+        return $result['response']['item_list'] ?? [];
     }
 }

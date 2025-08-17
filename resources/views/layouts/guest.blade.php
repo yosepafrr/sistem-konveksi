@@ -45,6 +45,7 @@
             © {{ date('Y') }} Dashboard Konveksi - Ramdani Konveksi
         </div>
     </div>
+    @livewireScripts
 </body>
 
 </html>
