@@ -24,10 +24,10 @@ class ShopeeService
 
     public function ensureValidToken(Store $store)
     {
-        //     if (Carbon::now('Asia/Jakarta')->gte($store->token_expired_at)) {
-        //         $this->refreshAccessToken($store);
-        //     }
-        $this->refreshAccessToken($store);
+            if (Carbon::now('Asia/Jakarta')->gte($store->token_expired_at)) {
+                $this->refreshAccessToken($store);
+            }
+        // $this->refreshAccessToken($store);
 
         return $store->access_token;
     }
@@ -57,60 +57,63 @@ class ShopeeService
     }
 
     // FUNGSI REFRESH ACCESS TOKEN
-    public function refreshAccessToken(Store $store)
-    {
-        $path = '/api/v2/auth/access_token/get';
-        $timestamp = Carbon::now()->timestamp;
+public function refreshAccessToken(Store $store)
+{
+    $path = '/api/v2/auth/access_token/get';
+    $timestamp = time();
 
-        $shopId = trim($store->shopee_shop_id);
-        $refreshToken = (int)$store->refresh_token;
+    $shopId = (int) $store->shopee_shop_id;
+    $refreshToken = $store->refresh_token;
 
-        $baseString = $this->partnerId . $path . $timestamp . $refreshToken;
-        $sign = hash_hmac('sha256', $baseString, $this->partnerKey, false);
+    $baseString = $this->partnerId . $path . $timestamp;
+    $refreshSign = hash_hmac('sha256', $baseString, $this->partnerKey);
 
+    $url = "https://openplatform.sandbox.test-stable.shopee.sg{$path}"
+        . "?partner_id={$this->partnerId}"
+        . "&timestamp={$timestamp}"
+        . "&sign={$refreshSign}";
 
-        $url = "https://openplatform.sandbox.test-stable.shopee.sg{$path}"
-            . "?partner_id={$this->partnerId}"
-            . "&timestamp={$timestamp}"
-            . "&shop_id={$shopId}"
-            . "&refresh_token={$refreshToken}"
-            . "&sign={$sign}";
+    $body = [
+        'partner_id' => (int) $this->partnerId,
+        'shop_id' => $shopId,
+        'refresh_token' => $refreshToken,
+    ];
 
-        Log::info('Shopee Access Token Refresh Request URL', ['url' => $url]);
+    Log::info('Shopee Access Token Refresh Request', [
+        'url' => $url,
+        'body' => $body,
+        'base_string' => $baseString,
+        'sign' => $refreshSign,
+    ]);
 
-        // Gunakan GET atau POST tergantung dari dokumentasi Shopee (biasanya POST tapi tanpa body)
-        $response = Http::withHeaders([
-            'Content-Type' => 'application/json',
-        ])->post($url);
+    $response = Http::withHeaders([
+        'Content-Type' => 'application/json',
+    ])->post($url, $body);
 
-        $json = $response->json();
+    $json = $response->json();
 
-        Log::info('Shopee - Refresh Access Token Response', [
-            'response' => $json,
-            'status' => $response->status(),
-            'body' => $response->body(),
+    Log::info('Shopee - Refresh Access Token Response', [
+        'response' => $json,
+        'status' => $response->status(),
+        'body' => $response->body(),
+    ]);
+
+    $data = $json['response'] ?? $json;
+
+    if (isset($data['access_token']) && isset($data['refresh_token'])) {
+        $store->update([
+            'access_token' => $data['access_token'],
+            'refresh_token' => $data['refresh_token'],
+            'token_expired_at' => Carbon::createFromTimestamp($data['expire_in'] + $timestamp)
+                ->setTimezone('Asia/Jakarta'),
         ]);
 
-        if (isset($json['response'])) {
-            $data = $json['response'];
-
-            $store->update([
-                'access_token' => $data['access_token'],
-                'refresh_token' => $data['refresh_token'],
-                'token_expired_at' => Carbon::createFromTimestamp($data['expire_in'] + $timestamp)
-                    ->setTimezone('Asia/Jakarta'),
-            ]);
-
-            return true;
-        }
-
-        Log::debug('Shopee base string', ['base_string' => $baseString]);
-        Log::debug('Shopee partner key', ['partner_key' => $this->partnerKey]);
-        Log::debug('Sign', ['sign' => $sign]);
-        Log::error('Shopee - Failed to refresh access token', ['response' => $response->body()]);
-        return false;
+        return true;
     }
 
+    Log::error('Shopee - Failed to refresh access token', ['response' => $response->body()]);
+    return false;
+}
 
     protected function generateSign($path, $timestamp, $accessToken, $shopId)
     {

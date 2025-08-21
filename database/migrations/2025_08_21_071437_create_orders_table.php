@@ -11,14 +11,24 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('orders', function (Blueprint $table) {
+        Schema::create('orders', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('store_id')->nullable()->constrained()->onDelete('cascade');
+            $table->bigInteger('item_id')->nullable();
+            $table->string('order_sn')->unique(); // Nomor pesanan dari Shopee
+            $table->integer('quantity_purchased')->nullable();
+            $table->timestamp('order_time')->nullable();
+            $table->string('order_status')->nullable();
+            $table->json('raw_data')->nullable(); // bisa simpan JSON full untuk cadangan
             $table->string('booking_sn')->nullable();
             $table->boolean('cod')->default(false);
-            $table->timestamp('create_time')->nullable();
             $table->dateTime('ship_by_date')->nullable();
             $table->text('message_to_seller')->nullable();
             $table->unsignedBigInteger('order_selling_price')->nullable();
+            $table->unsignedBigInteger('escrow_amount')->nullable();
             $table->unsignedBigInteger('escrow_amount_after_adjustment')->nullable();
+
+            $table->timestamps();
         });
     }
 
@@ -27,14 +37,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('orders', function (Blueprint $table) {
-            $table->string('booking_sn')->nullable();
-            $table->boolean('cod')->default(false);
-            $table->timestamp('create_time')->nullable();
-            $table->dateTime('ship_by_date')->nullable();
-            $table->text('message_to_seller')->nullable();
-            $table->unsignedBigInteger('order_selling_price')->nullable();
-            $table->unsignedBigInteger('escrow_amount_after_adjustment')->nullable();
-        });
+        Schema::dropIfExists('orders');
     }
 };

@@ -16,6 +16,10 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->string('platform');
             $table->string('store_name')->unique();
+            $table->string('shopee_shop_id')->unique();
+            $table->text('access_token')->nullable();
+            $table->text('refresh_token')->nullable();
+            $table->timestamp('token_expired_at')->nullable();
             $table->timestamps();
         });
     }

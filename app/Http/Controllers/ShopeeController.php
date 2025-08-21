@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use Carbon\Carbon;
 use App\Models\Store;
-use App\Models\Product;
+use App\Models\Item;
 use Illuminate\Http\Request;
 use App\Services\ShopeeService;
 use Illuminate\Support\Facades\Log;
@@ -25,7 +25,7 @@ class ShopeeController extends Controller
         $baseString = $partnerId . $path . $timestamp;
         $sign = hash_hmac('sha256', $baseString, $partnerKey);
 
-        $redirectUrl = 'https://725be3788caf.ngrok-free.app/shopee/callback'; // pastikan ini terdaftar di Shopee developer dashboard
+        $redirectUrl = 'https://381de381f552.ngrok-free.app/shopee/callback'; // pastikan ini terdaftar di Shopee developer dashboard
         $url = "https://openplatform.sandbox.test-stable.shopee.sg{$path}"
             . "?partner_id={$partnerId}"
             . "&timestamp={$timestamp}"
@@ -123,7 +123,7 @@ class ShopeeController extends Controller
             } else {
                 foreach ($itemDetails as $item) {
                     try {
-                        Product::updateOrCreate(
+                        Item::updateOrCreate(
                             [
                                 'item_id' => $item['item_id'],
                                 'store_id' => $store->id,
@@ -208,6 +208,7 @@ class ShopeeController extends Controller
                         [
                             'booking_sn'    => $order['booking_sn'] ?? null,
                             'store_id'      => $store->id,
+                            'item_id'       => 0,
                             'created_at'    => now(),
                             'updated_at'    => now(),
                         ]
@@ -225,15 +226,39 @@ class ShopeeController extends Controller
                             $escrowResponse = $shopee->getEscrowDetail($store, $detail['order_sn']);
                             $escrow = $escrowResponse['response'] ?? [];
 
-                            $itemId = null;
-                            $product = Product::where('item_name', $detail['item_list'][0]['item_name'] ?? '')
-                            ->orWhere('item_sku', $detail['item_list'][0]['item_sku'] ??'')
-                            ->first();
-                            $itemId = $product->item_id ?? null;
+                                $itemQuery = Item::query();
+
+                                $itemConditions = [];
+
+                                if (!empty($escrow['items'][0]['item_name'])) {
+                                    $itemConditions[] = ['item_name', '=', $escrow['items'][0]['item_name']];
+                                }
+
+                                if (!empty($escrow['items'][0]['item_sku'])) {
+                                    $itemConditions[] = ['item_sku', '=', $escrow['items'][0]['item_sku']];
+                                }
+
+                                if (!empty($itemConditions)) {
+                                    $itemQuery->where(function ($query) use ($itemConditions) {
+                                        foreach ($itemConditions as $condition) {
+                                            $query->orWhere(...$condition);
+                                        }
+                                    });
+                                }
+
+                                $item = $itemQuery->first();
+                                $itemId = $item?->item_id; // pakai safe navigation operator
+
+                                if (!$item) {
+                                    throw new \Exception('Item tidak ditemukan untuk SKU: ' . ($escrow['items'][0]['item_sku'] ?? 'N/A'));
+                                }
+                                
+                            // dd($detail);
 
                             // Update kembali dengan detail pesanan
                             \App\Models\Order::where('order_sn', $detail['order_sn'])
                                 ->update([
+                                    // 'item_name'         => $detail[]
                                     'order_status'      => $detail['order_status'] ?? null,
                                     'order_time'        => isset($detail['create_time']) ? Carbon::createFromTimestamp($detail['create_time']) : now(),
                                     'cod'               => $detail['cod'] ?? null,
@@ -262,6 +287,8 @@ class ShopeeController extends Controller
         }
 
         // return redirect(route('profit.tracker'));
+
+        // dd($allOrders);
 
         return response()->json([
             'total_orders'      => count($allOrders),
