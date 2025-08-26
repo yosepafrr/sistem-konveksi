@@ -39,6 +39,12 @@
         :active="request()->routeIs('dashboard')" :hasSubmenu=false>
     </x-side-link>
 
+        {{-- STORES --}}
+    <x-side-link label="Your Stores" icon="store" href="{{ route('dashboard') }}"
+        :active="request()->routeIs('dashboard')" :hasSubmenu=false>
+    </x-side-link>
+
+
     {{-- FINANCE --}}
     <x-side-link label="Finance" icon="finance_mode" href="'#'" :active="request()->routeIs('orders.*')"
         :hasSubmenu=true> <x-side-link :active="request()->routeIs('profit.tracker')" label="Profit Tracker" icon="paid"
@@ -61,17 +67,4 @@
             href="{{ route('profile') }}" />
     </x-side-link>
 
-    {{-- SHOPS --}}
-    <x-side-link label="Stores" icon="store" href="'#'" :active="request()->routeIs('orders.*')"
-        :hasSubmenu=true> <x-side-link :active="request()->routeIs('dashboard')" label="List Order" icon="list"
-            href="{{ route('dashboard') }}" />
-        <x-side-link :active="request()->routeIs('profile')" label="Create Order" icon="add"
-            href="{{ route('profile') }}" />
-        <x-side-link :active="request()->routeIs('profile')" label="Create Order" icon="add"
-            href="{{ route('profile') }}" />
-        <x-side-link :active="request()->routeIs('profile')" label="Create Order" icon="add"
-            href="{{ route('profile') }}" />
-        <x-side-link :active="request()->routeIs('profile')" label="Create Order" icon="add"
-            href="{{ route('profile') }}" />
-    </x-side-link>
 </aside>

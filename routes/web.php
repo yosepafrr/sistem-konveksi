@@ -4,6 +4,7 @@ use App\Livewire\ProfitTracker;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ShopeeController;
+use App\Http\Controllers\ShopeeWebhookController;
 
 Route::view('/', 'welcome');
 
@@ -30,5 +31,9 @@ Route::middleware(['auth','verified'])->group(function () {
 Route::middleware(['auth','verified'])->group(function () {
     Route::get('/shopee/orders', [ShopeeController::class, 'getShopeeOrders'])->name('shopee.orders');
 });
+
+
+// WEBHOOK ROUTE
+Route::post('/webhook/shopee', [ShopeeWebhookController::class, 'handleWebhook']);
 
 require __DIR__ . '/auth.php';

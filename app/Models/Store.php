@@ -10,6 +10,7 @@ class Store extends Model
     protected $fillable = [
         'platform',
         'store_name',
+        'shop_expired_at',
         'access_token',
         'refresh_token',
         'token_expired_at',

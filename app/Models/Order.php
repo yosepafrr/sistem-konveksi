@@ -28,4 +28,9 @@ class Order extends Model
         'order_selling_price' => 'float',
         'escrow_amount_after_adjustment' => 'float',
     ];
+
+    public function item() 
+    {
+        return $this->belongsTo(Item::class, 'item_id', 'item_id');
+    }
 }

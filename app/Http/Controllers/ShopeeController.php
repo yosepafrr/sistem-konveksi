@@ -21,11 +21,14 @@ class ShopeeController extends Controller
         $timestamp = time();
         $path = '/api/v2/shop/auth_partner';
 
+
+
+
         // HARUS pakai path, bukan redirectUrl di base_string
         $baseString = $partnerId . $path . $timestamp;
         $sign = hash_hmac('sha256', $baseString, $partnerKey);
 
-        $redirectUrl = 'https://381de381f552.ngrok-free.app/shopee/callback'; // pastikan ini terdaftar di Shopee developer dashboard
+        $redirectUrl = 'https://b2b1b53ce536.ngrok-free.app/shopee/callback'; // pastikan ini terdaftar di Shopee developer dashboard
         $url = "https://openplatform.sandbox.test-stable.shopee.sg{$path}"
             . "?partner_id={$partnerId}"
             . "&timestamp={$timestamp}"
@@ -96,11 +99,22 @@ class ShopeeController extends Controller
                 [
                     'platform'              => 'Shopee',
                     'store_name'            => $shopInfo['shop_name'] ?? 'Toko Shopee',
+                    'shop_expired_at'       => isset($shopInfo['expire_time'])
+                        ? Carbon::createFromTimestamp($shopInfo['expire_time'])
+                        : now()->addYear(),
                     'access_token'          => $accessToken,
                     'refresh_token'         => $refreshToken,
                     'token_expired_at'      => $tokenExpiredAt,
                 ]
             );
+
+            // Log hasil penyimpanan
+            Log::info('Data store berhasil diupdate/ditambahkan', [
+                'store_id' => $store->id,
+                'data'     => $store->toArray()
+            ]);
+
+
 
             $itemList = $shopee->getItemList($store);
             Log::info('Item List Response:', ['item_list' => $itemList]);
@@ -226,34 +240,44 @@ class ShopeeController extends Controller
                             $escrowResponse = $shopee->getEscrowDetail($store, $detail['order_sn']);
                             $escrow = $escrowResponse['response'] ?? [];
 
-                                $itemQuery = Item::query();
+                            $itemQuery = Item::query();
 
-                                $itemConditions = [];
+                            $itemConditions = [];
 
-                                if (!empty($escrow['items'][0]['item_name'])) {
-                                    $itemConditions[] = ['item_name', '=', $escrow['items'][0]['item_name']];
-                                }
+                            // if (!empty($escrow['items'][0]['item_name'])) {
+                            //     $itemConditions[] = ['item_name', '=', $escrow['items'][0]['item_name']];
+                            // }
 
-                                if (!empty($escrow['items'][0]['item_sku'])) {
-                                    $itemConditions[] = ['item_sku', '=', $escrow['items'][0]['item_sku']];
-                                }
+                            // if (!empty($escrow['items'][0]['item_sku'])) {
+                            //     $itemConditions[] = ['item_sku', '=', $escrow['items'][0]['item_sku']];
+                            // }
 
-                                if (!empty($itemConditions)) {
-                                    $itemQuery->where(function ($query) use ($itemConditions) {
-                                        foreach ($itemConditions as $condition) {
-                                            $query->orWhere(...$condition);
-                                        }
-                                    });
-                                }
+                            // if (!empty($itemConditions)) {
+                            //     $itemQuery->where(function ($query) use ($itemConditions) {
+                            //         foreach ($itemConditions as $condition) {
+                            //             $query->orWhere(...$condition);
+                            //         }
+                            //     });
+                            // }
 
-                                $item = $itemQuery->first();
-                                $itemId = $item?->item_id; // pakai safe navigation operator
+                            // $item = $itemQuery->first();
+                            // $itemId = $item?->item_id; // pakai safe navigation operator
 
-                                if (!$item) {
-                                    throw new \Exception('Item tidak ditemukan untuk SKU: ' . ($escrow['items'][0]['item_sku'] ?? 'N/A'));
-                                }
-                                
-                            // dd($detail);
+                            // if (!$item) {
+                            //     throw new \Exception('Item tidak ditemukan untuk SKU: ' . ($escrow['items'][0]['item_sku'] ?? 'N/A'));
+                            // }
+
+                            // // $itemId = null;
+                            // foreach ($escrow['order_income']['items'] as $escrowItem) {
+                            //     $item = Item::where('item_name',  $escrowItem[0]['item_name'] ?? '')
+                            //         ->orWhere('item_sku', $escrowItem[0]['item_sku'] ?? '')
+                            //         ->first();
+
+                            //     $itemId = $item->item_id ?? null;
+
+                            //     Log::info('Escrow items', ['items' => $escrow['order_income']['items'][0]['item_name']]);
+                            // }
+
 
                             // Update kembali dengan detail pesanan
                             \App\Models\Order::where('order_sn', $detail['order_sn'])
@@ -273,7 +297,7 @@ class ShopeeController extends Controller
                                     'quantity_purchased' => $escrow['order_income']['items'][0]['quantity_purchased'] ?? null,
 
                                     // item
-                                    'item_id' => $itemId,
+                                    'item_id' => $escrow['order_income']['items'][0]['item_id'] ?? 000,
                                 ]);
                         }
                     }
@@ -283,18 +307,18 @@ class ShopeeController extends Controller
             }
 
             $threeMonthsAgo->addDays($intervalDays);
-            sleep(1); // hindari rate limit
+            // sleep(1); // hindari rate limit
         }
 
-        // return redirect(route('profit.tracker'));
+        return redirect(route('profit.tracker'));
 
         // dd($allOrders);
 
-        return response()->json([
-            'total_orders'      => count($allOrders),
-            'orders'            => $allOrders,
-            'order_detail'      => $detail,
-            'escrow'            => $escrow,
-        ]);
+        // return response()->json([
+        //     'total_orders'      => count($allOrders),
+        //     'orders'            => $allOrders,
+        //     'order_detail'      => $detail,
+        //     'escrow'            => $escrow,
+        // ]);
     }
 }

@@ -27,8 +27,13 @@ class ProfitTracker extends Component
         $this->totalOrderSellingPrice = $this->orders->sum('order_selling_price');
         $this->totalEscrowAmount = $this->orders->sum('escrow_amount');
     }
+
+    protected $listeners = ['echo:orders,OrderCreated' => '$refresh'];
+
     public function render()
     {
-        return view('livewire.profit-tracker');
+        return view('livewire.profit-tracker', [
+            'orders' => Order::latest()->get(),
+        ]);
     }
 }
