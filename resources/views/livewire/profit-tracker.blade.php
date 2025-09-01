@@ -21,17 +21,17 @@
         <table class="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
             <thead class="text-xs text-gray-700 uppercase bg-gray-100 dark:bg-gray-700 dark:text-gray-400 sticky top-0">
                 <tr>
-                    <th scope="col" class="px-6 py-3 w-28">
+                    <th scope="col" class="px-6 py-3 w-28 border-l-2">
                         <span class="sr-only">Image</span>
                     </th>
                     <th scope="col" class="px-6 py-3">
                         Nama Produk
                     </th>
                     <th scope="col" class="px-6 py-3">
-                        Order ID
+                        Order QTY
                     </th>
                     <th scope="col" class="px-6 py-3">
-                        Order QTY
+                        Order ID
                     </th>
                     <th scope="col" class="px-6 py-3">
                         Order Status
@@ -39,46 +39,56 @@
                     <th scope="col" class="px-6 py-3">
                         Harga Jual
                     </th>
-                    <th scope="col" class="px-6 py-3">
+                    <th scope="col" class="px-6 py-3 border-r-2">
                         Pendapatan Akhir
                     </th>
                 </tr>
             </thead>
-            @foreach ($orders as $order)
-            <tbody>
-                <tr
-                    class="odd:bg-white odd:dark:bg-gray-900 even:bg-gray-50 even:dark:bg-gray-800 border-b dark:border-gray-700 border-gray-200">
-                    <th scope="row" class="px-6 py-3 font-medium text-gray-900 whitespace-nowrap dark:text-white">
-                        <img src="{{ $order->item->image ?? 'unknown' }}" alt="{{ $order->item->item_name ?? 'unknown' }}" class="w-14 h-14 rounded-md">
-                    </th>
-                    <td class="px-6 py-3">
-                        {{ $order->item->item_name ?? 'unknown' }}
+<tbody>
+        @foreach ($orders as $order)
+            @php $rowspan = $order->orderItems->count(); @endphp
+            @foreach ($order->orderItems as $index => $orderItem)
+                <tr class="{{ $index === $rowspan - 1 ? 'border-b dark:border-gray-700 border-gray-300 py-0' : '' }}">
+                    {{-- Kolom gambar & nama produk selalu tampil --}}
+                    <td class="px-6 py-3 border-l-2">
+                        <img src="{{ $orderItem->item->image ?? 'unknown' }}" alt="{{ $orderItem->item_name ?? 'unknown' }}" class="w-14 h-14 rounded-md">
                     </td>
                     <td class="px-6 py-3">
-                        {{ $order->order_sn ?? 'unknown' }}
+                        {{ $orderItem->item_name ?? 'unknown' }}
                     </td>
+                   {{-- Kolom quantity per produk --}}
                     <td class="px-6 py-3">
-                        {{ $order->quantity_purchased ?? 'unknown' }}
+                        {{ $orderItem->quantity_purchased ?? 'unknown' }}
                     </td>
-                    <td class="px-6 py-3">
-                        {{ $order->order_status ?? 'unknown' }}
-                    </td>
-                    <td class="px-6 py-3">
-                        {{ 'Rp ' . number_format($order->order_selling_price, 0, ',', '.') }}
-                    </td>
-                    <td class="px-6 py-3">
-                        {{ 'Rp ' . number_format($order->escrow_amount, 0, ',', '.') }}
-                    </td>
+
+
+                    {{-- Kolom order hanya tampil di baris pertama saja --}}
+                    @if ($index === 0)
+                        <td class="px-6 py-3" rowspan="{{ $rowspan }}">
+                            {{ $order->order_sn ?? 'unknown' }}
+                        </td>
+                        <td class="px-6 py-3" rowspan="{{ $rowspan }}">
+                            {{ $order->order_status ?? 'unknown' }}
+                        </td>
+                        <td class="px-6 py-3" rowspan="{{ $rowspan }}">
+                            {{ 'Rp ' . number_format($order->order_selling_price, 0, ',', '.') }}
+                        </td>
+                        <td class="px-6 py-3 border-r-2" rowspan="{{ $rowspan }}">
+                            {{ 'Rp ' . number_format($order->escrow_amount, 0, ',', '.') }}
+                        </td>
+                    @endif
+
                 </tr>
-            </tbody>
             @endforeach
-            <tfoot>
+        @endforeach
+    </tbody>
+                <tfoot>
                 <tr class=" bg-gray-100 border-b font-bold text-dark dark:border-gray-700 border-gray-200  sticky bottom-0">
-                    <td colspan="5" class="px-6 py-2">Total:</td>
+                    <td colspan="5" class="px-6 py-2 border-l-2">Total:</td>
                     <td class="px-6 py-2">
                         {{ 'Rp ' . number_format($totalOrderSellingPrice, 0, ',', '.') }}
                     </td>
-                    <td class="px-6 py-2">
+                    <td class="px-6 py-2 border-r-2">
                         {{ 'Rp ' . number_format($totalEscrowAmount, 0, ',', '.') }}
                     </td>
                 </tr>
@@ -87,7 +97,7 @@
         </div>
         <div class="mt-5">
             <a href=" {{ route('shopee.orders') }}" class="btn btn-primary mt-10">
-                Update Data Pesanan
+                Update Orders
             </a>
         </div>
 
@@ -95,7 +105,7 @@
         @empty
         <p class="text-gray-500">No stores found.</p>
         <a href="{{ route('shopee.connect') }}" class="btn btn-primary">
-            Hubungkan Toko Shopee
+            Authorize Now
         </a>
         @endforelse
         </div>

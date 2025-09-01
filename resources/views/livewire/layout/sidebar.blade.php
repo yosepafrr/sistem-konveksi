@@ -39,9 +39,14 @@
         :active="request()->routeIs('dashboard')" :hasSubmenu=false>
     </x-side-link>
 
-        {{-- STORES --}}
-    <x-side-link label="Your Stores" icon="store" href="{{ route('dashboard') }}"
-        :active="request()->routeIs('dashboard')" :hasSubmenu=false>
+    {{-- STORES --}}
+    <x-side-link label="Your Stores" icon="store" href="{{ route('store.list') }}"
+        :active="request()->routeIs('store.list')" :hasSubmenu=false>
+    </x-side-link>
+
+    {{-- PRODUCTS --}}
+    <x-side-link label="Your Products" icon="apparel" href="{{ route('product.list') }}"
+        :active="request()->routeIs('product.list')" :hasSubmenu=false>
     </x-side-link>
 
 

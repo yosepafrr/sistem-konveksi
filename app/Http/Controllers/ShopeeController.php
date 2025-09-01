@@ -92,8 +92,6 @@ class ShopeeController extends Controller
             $shopInfo = $shopee->getShopProfile($store);
             Log::info('Shopee - Shop Info:', $shopInfo);
 
-            $shopInfo = $shopee->getShopProfile($store);
-
             $store =  Auth::user()->stores()->updateOrCreate(
                 ['shopee_shop_id' => $shopId],
                 [
@@ -178,6 +176,64 @@ class ShopeeController extends Controller
         }
     }
 
+    public function updateProducts(Request $request, ShopeeService $shopee)
+    {
+        $store = Auth::user()->stores()->where('platform', 'Shopee')->first();
+        $accessToken = $shopee->ensureValidToken($store);
+
+        if (!$store) {
+            Log::warning('Tidak ada toko Shopee yang terhubung.');
+            return response()->json(['error' => 'No Shopee store linked'], 404);
+        }
+
+        $itemList = $shopee->getItemList($store);
+        $itemIds = collect($itemList['items'] ?? $itemList)->pluck('item_id')->take(20)->toArray();
+
+        if (empty($itemIds)) {
+            Log::warning('Item list kosong.');
+            return;
+        }
+
+        $itemDetails = $shopee->getItemBaseInfo($store, $itemIds);
+        if (empty($itemDetails)) {
+            Log::warning('Item base info kosong.', ['item_id_list' => $itemIds]);
+            return;
+        }
+
+        foreach ($itemDetails as $item) {
+            try {
+                Item::updateOrCreate(
+                    [
+                        'item_id'  => $item['item_id'],
+                        'store_id' => $store->id,
+                    ],
+                    [
+                        'item_name'  => $item['item_name'] ?? 'Unknown',
+                        'image'      => $item['promotion_image']['image_url_list'][0]
+                            ?? $item['images'][0]
+                            ?? null,
+                        'price'      => $item['price_info'][0]['current_price']
+                            ?? $item['price']
+                            ?? 0,
+                        'item_sku'   => $item['item_sku'] ?? null,
+                        'item_status' => $item['item_status'] ?? null,
+                        'stock'      => $item['stock_info_v2']['summary_info']['total_available_stock'] ?? 0,
+                        'category'   => $item['category_id'] ?? null,
+                    ]
+                );
+                Log::info("Produk {$item['item_id']} berhasil disimpan");
+            } catch (\Throwable $e) {
+                Log::error('Gagal simpan produk Shopee', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                    'data' => $item
+                ]);
+            }
+        }
+
+        return redirect(route('product.list'));
+    }
+
     // AMBIL PESANAN SELAMA 3 BULAN KEBELAKANG
     public function getShopeeOrders(Request $request, ShopeeService $shopee)
     {
@@ -244,45 +300,10 @@ class ShopeeController extends Controller
 
                             $itemConditions = [];
 
-                            // if (!empty($escrow['items'][0]['item_name'])) {
-                            //     $itemConditions[] = ['item_name', '=', $escrow['items'][0]['item_name']];
-                            // }
-
-                            // if (!empty($escrow['items'][0]['item_sku'])) {
-                            //     $itemConditions[] = ['item_sku', '=', $escrow['items'][0]['item_sku']];
-                            // }
-
-                            // if (!empty($itemConditions)) {
-                            //     $itemQuery->where(function ($query) use ($itemConditions) {
-                            //         foreach ($itemConditions as $condition) {
-                            //             $query->orWhere(...$condition);
-                            //         }
-                            //     });
-                            // }
-
-                            // $item = $itemQuery->first();
-                            // $itemId = $item?->item_id; // pakai safe navigation operator
-
-                            // if (!$item) {
-                            //     throw new \Exception('Item tidak ditemukan untuk SKU: ' . ($escrow['items'][0]['item_sku'] ?? 'N/A'));
-                            // }
-
-                            // // $itemId = null;
-                            // foreach ($escrow['order_income']['items'] as $escrowItem) {
-                            //     $item = Item::where('item_name',  $escrowItem[0]['item_name'] ?? '')
-                            //         ->orWhere('item_sku', $escrowItem[0]['item_sku'] ?? '')
-                            //         ->first();
-
-                            //     $itemId = $item->item_id ?? null;
-
-                            //     Log::info('Escrow items', ['items' => $escrow['order_income']['items'][0]['item_name']]);
-                            // }
-
-
                             // Update kembali dengan detail pesanan
-                            \App\Models\Order::where('order_sn', $detail['order_sn'])
-                                ->update([
-                                    // 'item_name'         => $detail[]
+                            $orderModel = \App\Models\Order::updateOrCreate(
+                                ['order_sn' => $detail['order_sn']],
+                                [
                                     'order_status'      => $detail['order_status'] ?? null,
                                     'order_time'        => isset($detail['create_time']) ? Carbon::createFromTimestamp($detail['create_time']) : now(),
                                     'cod'               => $detail['cod'] ?? null,
@@ -294,11 +315,24 @@ class ShopeeController extends Controller
                                     'order_selling_price' => $escrow['order_income']['order_selling_price'] ?? null,
                                     'escrow_amount' => $escrow['order_income']['escrow_amount'] ?? null,
                                     'escrow_amount_after_adjustment' => $escrow['order_income']['escrow_amount_after_adjusment'] ?? null,
-                                    'quantity_purchased' => $escrow['order_income']['items'][0]['quantity_purchased'] ?? null,
+                                ]
+                            );
 
-                                    // item
-                                    'item_id' => $escrow['order_income']['items'][0]['item_id'] ?? 000,
-                                ]);
+                            if (!empty($escrow['order_income']['items'])) {
+                                foreach ($escrow['order_income']['items'] as $escrowItem) {
+                                    \App\Models\OrderItem::UpdateOrCreate(
+                                        [
+                                            'order_id' => $orderModel->id,
+                                            'item_id' => $escrowItem['item_id']
+                                        ],
+                                        [
+                                            'item_name' => $escrowItem['item_name'] ?? null,
+                                            'quantity_purchased' => $escrowItem['quantity_purchased'] ?? 0,
+                                            'price' => $escrowItem['item_price'] ?? 0,
+                                        ]
+                                    );
+                                }
+                            }
                         }
                     }
                 }

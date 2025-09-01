@@ -12,10 +12,16 @@ class Order extends Model
         'store_id',
         'order_sn',
         'booking_sn',
-        'created_at',
-        'updated_at',
         'order_status',
         'order_time',
+        'cod',
+        'ship_by_date',
+        'message_to_seller',
+        'raw_data',
+        'order_selling_price',
+        'escrow_amount',
+        'escrow_amount_after_adjustment',
+        'created_at',
         'updated_at',
     ];
 
@@ -29,8 +35,13 @@ class Order extends Model
         'escrow_amount_after_adjustment' => 'float',
     ];
 
-    public function item() 
+    public function item()
     {
         return $this->belongsTo(Item::class, 'item_id', 'item_id');
+    }
+
+    public function orderItems()
+    {
+        return $this->hasMany(OrderItem::class, 'order_id', 'id');
     }
 }

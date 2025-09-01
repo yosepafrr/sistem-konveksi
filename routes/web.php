@@ -1,5 +1,7 @@
 <?php
 
+use App\Livewire\StoreList;
+use App\Livewire\ProductList;
 use App\Livewire\ProfitTracker;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -18,6 +20,8 @@ Route::view('profile', 'profile')
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/profit-tracker', ProfitTracker::class)->name('profit.tracker');
+    Route::get('/store-list', StoreList::class)->name('store.list');
+    Route::get('/product-list', ProductList::class)->name('product.list');
 });
 
 
@@ -26,6 +30,13 @@ Route::middleware(['auth','verified'])->group(function () {
     Route::get('/connect/shopee', [ShopeeController::class, 'redirectToShopee'])->name('shopee.connect');
     Route::get('/shopee/callback', [ShopeeController::class, 'handleShopeeCallback'])->name('shopee.callback');
 });
+
+
+// UPDATE PRODUCTS
+Route::middleware(['auth','verified'])->group(function () {
+    Route::get('/shopee/update-product', [ShopeeController::class, 'updateProducts'])->name('shopee.update-product');
+});
+
 
 // GET SHOPEE ORDERS
 Route::middleware(['auth','verified'])->group(function () {

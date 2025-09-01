@@ -21,12 +21,20 @@ class SyncShopeeOrderJob implements ShouldQueue
         // tidak perlu parameter
     }
 
-    public function handle(): void
+    public function handle()
     {
         $stores = Store::where('platform', 'Shopee')->get();
+        $shopee = new ShopeeService();
+
+
+        if (!$stores) {
+            return response()->json(['error' => 'Shopee store not found.'], 404);
+        }
+
+        $accessToken = $shopee->ensureValidToken($stores);
+
 
         foreach ($stores as $store) {
-            $shopee = new ShopeeService();
             $accessToken = $shopee->ensureValidToken($store);
             $now = Carbon::now('UTC');
             $oneMinutesAgo = $now->copy()->subMinutes(1); // Ambil pesanan dari 1 menit terakhir
