@@ -10,11 +10,11 @@
             this.sidebarCollapsed = !this.sidebarCollapsed;
             localStorage.setItem('sidebarCollapsed', JSON.stringify(this.sidebarCollapsed));
         }
-    }" class="mr-3 ml-1 pt-5"
+    }" class="mr-3 ml-1 pt-5 sticky top-0 h-screen"
     :class="sidebarCollapsed ? 'w-11 transition-all duration-300 ease-in-out overflow-hidden' : 'w-80 overflow-hidden'">
     {{-- HEADER SIDEBAR --}}
 
-    <div class="flex items-center space-x-2 gap-1 justify-between">
+    <div class="flex items-center space-x-2 gap-1 justify-between ">
         <div class="flex items-center -mr-3 space-x-2 mb-5 gap-1">
             <div x-show="!sidebarCollapsed" class="transition-all duration-300 ease-in-out overflow-hidden">
                 <x-application-logo class="items-center" />
@@ -60,16 +60,8 @@
 
     {{-- ORDERS --}}
     <x-side-link label="Orders" icon="shopping_bag" href="'#'" :active="request()->routeIs('orders.*')"
-        :hasSubmenu=true> <x-side-link :active="request()->routeIs('dashboard')" label="List Order" icon="list"
-            href="{{ route('dashboard') }}" />
-        <x-side-link :active="request()->routeIs('profile')" label="Create Order" icon="add"
-            href="{{ route('profile') }}" />
-        <x-side-link :active="request()->routeIs('profile')" label="Create Order" icon="add"
-            href="{{ route('profile') }}" />
-        <x-side-link :active="request()->routeIs('profile')" label="Create Order" icon="add"
-            href="{{ route('profile') }}" />
-        <x-side-link :active="request()->routeIs('profile')" label="Create Order" icon="add"
-            href="{{ route('profile') }}" />
+        :hasSubmenu=true> <x-side-link :active="request()->routeIs('order.list')" label="Order List" icon="list"
+            href="{{ route('order.list') }}" />
     </x-side-link>
 
 </aside>

@@ -1,113 +1,47 @@
+
 <div class="p-6 bg-white dark:bg-gray-800 rounded shadow">
-    {{-- Care about people's approval and you will be their prisoner. --}}
+    <div wire:poll.5s>
     <h1 class="text-2xl font-bold mb-4 text-gray-800 dark:text-white">Profit Tracker</h1>
-
-    {{-- <div wire:loading>
-        <p class="text-gray-500">Loading data...</p>
-    </div> --}}
-
-
-    {{-- <div wire:loading.remove> --}}
-    <div>
-        <div wire:poll.10s>
-        @forelse ($stores as $store)
-        @if (empty($orders))
-        <p class="text-gray-500">No orders found.</p>
-        <a href="{{ route('shopee.orders') }}" class="btn btn-primary">
-            Ambil Data Pesanan
-        </a>
-        @else
-        <div class="max-h-[77.4vh] overflow-y-scroll">
-        <table class="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
-            <thead class="text-xs text-gray-700 uppercase bg-gray-100 dark:bg-gray-700 dark:text-gray-400 sticky top-0">
-                <tr>
-                    <th scope="col" class="px-6 py-3 w-28 border-l-2">
-                        <span class="sr-only">Image</span>
-                    </th>
-                    <th scope="col" class="px-6 py-3">
-                        Nama Produk
-                    </th>
-                    <th scope="col" class="px-6 py-3">
-                        Order QTY
-                    </th>
-                    <th scope="col" class="px-6 py-3">
-                        Order ID
-                    </th>
-                    <th scope="col" class="px-6 py-3">
-                        Order Status
-                    </th>
-                    <th scope="col" class="px-6 py-3">
-                        Harga Jual
-                    </th>
-                    <th scope="col" class="px-6 py-3 border-r-2">
-                        Pendapatan Akhir
-                    </th>
-                </tr>
-            </thead>
-<tbody>
-        @foreach ($orders as $order)
-            @php $rowspan = $order->orderItems->count(); @endphp
-            @foreach ($order->orderItems as $index => $orderItem)
-                <tr class="{{ $index === $rowspan - 1 ? 'border-b dark:border-gray-700 border-gray-300 py-0' : '' }}">
-                    {{-- Kolom gambar & nama produk selalu tampil --}}
-                    <td class="px-6 py-3 border-l-2">
-                        <img src="{{ $orderItem->item->image ?? 'unknown' }}" alt="{{ $orderItem->item_name ?? 'unknown' }}" class="w-14 h-14 rounded-md">
-                    </td>
-                    <td class="px-6 py-3">
-                        {{ $orderItem->item_name ?? 'unknown' }}
-                    </td>
-                   {{-- Kolom quantity per produk --}}
-                    <td class="px-6 py-3">
-                        {{ $orderItem->quantity_purchased ?? 'unknown' }}
-                    </td>
-
-
-                    {{-- Kolom order hanya tampil di baris pertama saja --}}
-                    @if ($index === 0)
-                        <td class="px-6 py-3" rowspan="{{ $rowspan }}">
-                            {{ $order->order_sn ?? 'unknown' }}
-                        </td>
-                        <td class="px-6 py-3" rowspan="{{ $rowspan }}">
-                            {{ $order->order_status ?? 'unknown' }}
-                        </td>
-                        <td class="px-6 py-3" rowspan="{{ $rowspan }}">
-                            {{ 'Rp ' . number_format($order->order_selling_price, 0, ',', '.') }}
-                        </td>
-                        <td class="px-6 py-3 border-r-2" rowspan="{{ $rowspan }}">
-                            {{ 'Rp ' . number_format($order->escrow_amount, 0, ',', '.') }}
-                        </td>
-                    @endif
-
-                </tr>
-            @endforeach
-        @endforeach
-    </tbody>
-                <tfoot>
-                <tr class=" bg-gray-100 border-b font-bold text-dark dark:border-gray-700 border-gray-200  sticky bottom-0">
-                    <td colspan="5" class="px-6 py-2 border-l-2">Total:</td>
-                    <td class="px-6 py-2">
-                        {{ 'Rp ' . number_format($totalOrderSellingPrice, 0, ',', '.') }}
-                    </td>
-                    <td class="px-6 py-2 border-r-2">
-                        {{ 'Rp ' . number_format($totalEscrowAmount, 0, ',', '.') }}
-                    </td>
-                </tr>
-            </tfoot>
-        </table>
-        </div>
-        <div class="mt-5">
-            <a href=" {{ route('shopee.orders') }}" class="btn btn-primary mt-10">
-                Update Orders
-            </a>
-        </div>
-
-        @endif
-        @empty
-        <p class="text-gray-500">No stores found.</p>
-        <a href="{{ route('shopee.connect') }}" class="btn btn-primary">
-            Authorize Now
-        </a>
-        @endforelse
-        </div>
-    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-5 mb-10">
+                    @foreach ($stores as $store)
+                        @php
+                            $bgColor = [
+                                'Shopee' => '#ee4d2d',
+                                'Tokopedia' => '#03ac0e',
+                                'Tiktokshop' => '#141615'
+                            ];
+                            $bg = $bgColor[$store->platform] ?? '#black';
+                        @endphp
+                    <div class="h-40 bg-[#f5f7fb] shadow-md rounded-xl flex items-center justify-center gap-3">
+                        <div>
+                            <span style="background-color: {{ $bg }}" class="material-symbols-rounded text-5xl text-white rounded-full p-3">store</span>
+                        </div>
+                        <div class="justify-center flex flex-col">
+                        <div class="text-gray-500 text-sm capitalize flex gap-1">Store: <span class="font-extrabold uppercase truncate-btn inline-block max-w-52 truncate hover:cursor-pointer">{{ $store->store_name }}</span></div>
+                        <div class="text-sm capitalize text-[#344767]">Total Escrow: <span class="font-extrabold text-2xl">{{ 'Rp ' . number_format($storeEscrowTotal[$store->id] ?? 0, 0, ',', '.') }}</span></div>
+                        </div>
+                    </div>
+                    @endforeach
+                    
+                    <div class="h-40 bg-[#f5f7fb] shadow-md rounded-xl flex items-center justify-center gap-3">
+                        <div>
+                            <span class="material-symbols-rounded text-5xl text-white bg-green-700 rounded-full p-3">functions</span>
+                        </div>
+                        <div class="justify-center flex flex-col">
+                        <div class="text-gray-500 text-sm uppercase">Stores Escrow Sum</div>
+                        <div class="font-extrabold text-2xl text-[#344767]">{{ 'Rp ' . number_format($totalEscrowAmount, 0, ',', '.') }}</div>
+                        </div>
+                    </div>
+                    <div class="h-40 bg-[#f5f7fb] shadow-md rounded-xl flex items-center justify-center gap-3">
+                        <div>
+                            <span class="material-symbols-rounded text-5xl text-white bg-blue-500 rounded-full p-3">request_quote</span>
+                        </div>
+                        <div class="justify-center flex flex-col">
+                        <div class="text-gray-500 text-sm uppercase">Ads spent</div>
+                        <div class="font-extrabold text-2xl text-[#344767]">{{ 'Rp ' . number_format(1000500, 0, ',', '.') }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {{-- <livewire:order-list /> --}}
 </div>

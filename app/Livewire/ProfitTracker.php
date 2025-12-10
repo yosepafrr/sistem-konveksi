@@ -13,27 +13,41 @@ use App\Models\Store;
 
 class ProfitTracker extends Component
 {
-    public $orders;
     public $stores;
-
+    public $orders;
     public $totalOrderSellingPrice;
-
     public $totalEscrowAmount;
-
-    public function mount()
-    {
-        $this->stores = Auth::user()->stores;
-        $this->orders = $this->stores->first()?->orders ?? collect();
-        $this->totalOrderSellingPrice = $this->orders->sum('order_selling_price');
-        $this->totalEscrowAmount = $this->orders->sum('escrow_amount');
-    }
 
     protected $listeners = ['echo:orders,OrderCreated' => '$refresh'];
 
     public function render()
     {
+        $this->stores = Auth::user()->stores()->get();
+
+        $storeIds = $this->stores->pluck('id');
+
+        // Load ulang orders setiap render (dipanggil juga saat poll)
+        $this->orders = Order::whereIn('store_id', $storeIds)
+            ->with('orderItems.item')
+            ->latest()
+            ->get()
+            ->sortByDesc('order_time');
+
+        $this->totalOrderSellingPrice = $this->orders->sum('order_selling_price');
+        $this->totalEscrowAmount = $this->orders->sum('escrow_amount');
+
+        // Hitung escrow per store
+        $storeEscrowTotal = [];
+        foreach ($this->stores as $store) {
+            $storeEscrowTotal[$store->id] = $this->orders
+                ->where('store_id', $store->id)
+                ->sum('escrow_amount');
+        }
+
         return view('livewire.profit-tracker', [
-            'orders' => Order::latest()->get(),
+            'stores' => $this->stores,
+            'orders' => $this->orders,
+            'storeEscrowTotal' => $storeEscrowTotal,
         ]);
     }
 }

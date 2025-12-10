@@ -28,4 +28,9 @@ class Item extends Model
     {
         return $this->hasMany(Order::class, 'item_id', 'item_id');
     }
+
+    public function variantItems()
+    {
+        return $this->hasMany(VariantItems::class, 'item_id', 'id')->orderBy('model_name');
+    }
 }

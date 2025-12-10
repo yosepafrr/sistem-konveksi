@@ -24,6 +24,6 @@ class Store extends Model
     }
 
     public function orders() {
-        return $this->hasMany(Order::class)->orderBy('order_time', 'desc');
+        return $this->hasMany(Order::class, 'store_id', 'id')->orderBy('order_time', 'desc');
     }
 }

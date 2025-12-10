@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use Carbon\Carbon;
-use App\Models\Store;
 use App\Models\Item;
+use App\Models\Store;
+use Illuminate\Support\Arr;
+use App\Models\VariantItems;
 use Illuminate\Http\Request;
 use App\Services\ShopeeService;
 use Illuminate\Support\Facades\Log;
@@ -28,7 +30,7 @@ class ShopeeController extends Controller
         $baseString = $partnerId . $path . $timestamp;
         $sign = hash_hmac('sha256', $baseString, $partnerKey);
 
-        $redirectUrl = 'https://b2b1b53ce536.ngrok-free.app/shopee/callback'; // pastikan ini terdaftar di Shopee developer dashboard
+        $redirectUrl = 'https://0a127475ecc6.ngrok-free.app/shopee/callback'; // pastikan ini terdaftar di Shopee developer dashboard
         $url = "https://openplatform.sandbox.test-stable.shopee.sg{$path}"
             . "?partner_id={$partnerId}"
             . "&timestamp={$timestamp}"
@@ -126,6 +128,7 @@ class ShopeeController extends Controller
             Log::info('Item IDs to fetch:', ['item_id_list' => $itemIds]);
 
             $itemDetails = $shopee->getItemBaseInfo($store, $itemIds);
+            $itemVariants = $shopee->getItemsVariant($store, $itemIds);
 
             Log::info('Raw data item detail', ['data' => $itemDetails]);
 
@@ -135,7 +138,7 @@ class ShopeeController extends Controller
             } else {
                 foreach ($itemDetails as $item) {
                     try {
-                        Item::updateOrCreate(
+                        $savedItems = Item::updateOrCreate(
                             [
                                 'item_id' => $item['item_id'],
                                 'store_id' => $store->id,
@@ -151,6 +154,44 @@ class ShopeeController extends Controller
                             ]
                         );
                         Log::info("Produk {$item['item_id']} berhasil disimpan");
+
+                        // Simpan variant items jika ada
+                        if (!empty($itemVariants[$item['item_id']]['model'])) {
+                            foreach ($itemVariants[$item['item_id']]['model'] as $model) {
+                                try {
+                                    Log::info("Otw simpan variant", [
+                                        'item_id'  => $item['item_id'],
+                                        'model_id' => Arr::get($model, 'model_id'),
+                                    ]);
+
+                                    $variantSaved = VariantItems::updateOrCreate(
+                                        [
+                                            'item_id'  => $savedItems->id, // id dari tabel products
+                                            'model_id' => Arr::get($model, 'model_id'),
+                                        ],
+                                        [
+                                            'model_name' => Arr::get($model, 'model_name'),
+                                            'model_sku'  => Arr::get($model, 'model_sku'),
+                                            'stock'      => Arr::get($model, 'stock_info_v2.summary_info.total_available_stock', 0),
+                                            'price'      => Arr::get($model, 'price_info.0.current_price', 0),
+                                            'status'     => Arr::get($model, 'model_status'),
+                                        ]
+                                    );
+
+                                    Log::info("Variant {$model['model_id']} untuk item {$item['item_id']} berhasil disimpan ke DB", [
+                                        'db_id' => $variantSaved->id,
+                                    ]);
+                                } catch (\Throwable $e) {
+                                    Log::error("Gagal simpan variant ke DB", [
+                                        'item_id'  => $item['item_id'],
+                                        'model_id' => $model['model_id'] ?? null,
+                                        'error'    => $e->getMessage(),
+                                        'trace'    => $e->getTraceAsString(),
+                                        'data'     => $model
+                                    ]);
+                                }
+                            }
+                        }
                     } catch (\Throwable $e) {
                         Log::error('Gagal simpan produk Shopee', [
                             'error' => $e->getMessage(),
@@ -161,18 +202,6 @@ class ShopeeController extends Controller
                 }
             }
             return redirect()->route('profit.tracker')->with('success', 'Toko Shopee berhasil terhubung.');
-
-            // return response()->json([
-            //     'message' => 'Gagal menghubungkan toko',
-            //     'debug' => [
-            //         'url'           => $url,
-            //         'sign'          => $sign,
-            //         'base_string'   => $baseString,
-            //         'response'      => $result,
-            //         'item_list' => $itemList,
-            //         'item_details' => $itemDetails
-            //     ]
-            // ], 400);
         }
     }
 
@@ -195,6 +224,9 @@ class ShopeeController extends Controller
         }
 
         $itemDetails = $shopee->getItemBaseInfo($store, $itemIds);
+        $itemVariants = $shopee->getItemsVariant($store, $itemIds);
+
+
         if (empty($itemDetails)) {
             Log::warning('Item base info kosong.', ['item_id_list' => $itemIds]);
             return;
@@ -202,7 +234,7 @@ class ShopeeController extends Controller
 
         foreach ($itemDetails as $item) {
             try {
-                Item::updateOrCreate(
+                $savedItems = Item::updateOrCreate(
                     [
                         'item_id'  => $item['item_id'],
                         'store_id' => $store->id,
@@ -212,9 +244,7 @@ class ShopeeController extends Controller
                         'image'      => $item['promotion_image']['image_url_list'][0]
                             ?? $item['images'][0]
                             ?? null,
-                        'price'      => $item['price_info'][0]['current_price']
-                            ?? $item['price']
-                            ?? 0,
+                        'price'      => $item['price_info'][0]['current_price'] ?? $item['price'] ?? 69,
                         'item_sku'   => $item['item_sku'] ?? null,
                         'item_status' => $item['item_status'] ?? null,
                         'stock'      => $item['stock_info_v2']['summary_info']['total_available_stock'] ?? 0,
@@ -222,6 +252,45 @@ class ShopeeController extends Controller
                     ]
                 );
                 Log::info("Produk {$item['item_id']} berhasil disimpan");
+                Log::info("Data item yang diterima dari API", [
+                    'raw' => $item
+                ]);
+                if (!empty($itemVariants[$item['item_id']]['model'])) {
+                    foreach ($itemVariants[$item['item_id']]['model'] as $model) {
+                        try {
+                            Log::info("Otw simpan variant", [
+                                'item_id'  => $item['item_id'],
+                                'model_id' => Arr::get($model, 'model_id'),
+                            ]);
+
+                            $variantSaved = VariantItems::updateOrCreate(
+                                [
+                                    'item_id'  => $savedItems->id, // id dari tabel products
+                                    'model_id' => Arr::get($model, 'model_id'),
+                                ],
+                                [
+                                    'model_name' => Arr::get($model, 'model_name'),
+                                    'model_sku'  => Arr::get($model, 'model_sku'),
+                                    'stock'      => Arr::get($model, 'stock_info_v2.summary_info.total_available_stock', 0),
+                                    'price'      => Arr::get($model, 'price_info.0.current_price', 0),
+                                    'status'     => Arr::get($model, 'model_status'),
+                                ]
+                            );
+
+                            Log::info("Variant {$model['model_id']} untuk item {$item['item_id']} berhasil disimpan ke DB", [
+                                'db_id' => $variantSaved->id,
+                            ]);
+                        } catch (\Throwable $e) {
+                            Log::error("Gagal simpan variant ke DB", [
+                                'item_id'  => $item['item_id'],
+                                'model_id' => $model['model_id'] ?? null,
+                                'error'    => $e->getMessage(),
+                                'trace'    => $e->getTraceAsString(),
+                                'data'     => $model
+                            ]);
+                        }
+                    }
+                }
             } catch (\Throwable $e) {
                 Log::error('Gagal simpan produk Shopee', [
                     'error' => $e->getMessage(),
@@ -230,6 +299,7 @@ class ShopeeController extends Controller
                 ]);
             }
         }
+        // dd("Variant berhasil disimpan: {$model['model_id']} - {$model['model_name']}");
 
         return redirect(route('product.list'));
     }
@@ -237,7 +307,11 @@ class ShopeeController extends Controller
     // AMBIL PESANAN SELAMA 3 BULAN KEBELAKANG
     public function getShopeeOrders(Request $request, ShopeeService $shopee)
     {
-        $store = Auth::user()->stores()->where('platform', 'Shopee')->first();
+        $store = Auth::user()->stores()
+            ->where('platform', 'Shopee')
+            ->where('id', $request->store_id)
+            ->first();
+
 
         if (!$store) {
             return response()->json(['error' => 'Shopee store not found.'], 404);
@@ -315,6 +389,7 @@ class ShopeeController extends Controller
                                     'order_selling_price' => $escrow['order_income']['order_selling_price'] ?? null,
                                     'escrow_amount' => $escrow['order_income']['escrow_amount'] ?? null,
                                     'escrow_amount_after_adjustment' => $escrow['order_income']['escrow_amount_after_adjusment'] ?? null,
+
                                 ]
                             );
 
@@ -329,6 +404,10 @@ class ShopeeController extends Controller
                                             'item_name' => $escrowItem['item_name'] ?? null,
                                             'quantity_purchased' => $escrowItem['quantity_purchased'] ?? 0,
                                             'price' => $escrowItem['item_price'] ?? 0,
+                                            'image' => $detail['item_list']['image_info'][0]['image_url'] ?? null,
+
+                                            // model fields
+                                            'model_name' => $detail['item_list'][0]['model_name'] ?? 'without variant',
                                         ]
                                     );
                                 }
@@ -345,14 +424,6 @@ class ShopeeController extends Controller
         }
 
         return redirect(route('profit.tracker'));
-
-        // dd($allOrders);
-
-        // return response()->json([
-        //     'total_orders'      => count($allOrders),
-        //     'orders'            => $allOrders,
-        //     'order_detail'      => $detail,
-        //     'escrow'            => $escrow,
-        // ]);
+        // dd($detailsResponse);
     }
 }

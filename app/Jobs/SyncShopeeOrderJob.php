@@ -2,74 +2,142 @@
 
 namespace App\Jobs;
 
-use App\Models\Store;
+use Carbon\Carbon;
 use App\Models\Order;
-use App\Services\ShopeeService;
+use App\Models\Store;
+use App\Events\OrderCreated;
 use Illuminate\Bus\Queueable;
+use App\Services\ShopeeService;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
-use Carbon\Carbon;
 
 class SyncShopeeOrderJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public function __construct()
-    {
-        // tidak perlu parameter
-    }
+    public $tries = 3;
+    public $timeout = 120;
 
     public function handle()
     {
+        Log::info('SyncShopeeOrderJob started', ['time' => now()]);
+
         $stores = Store::where('platform', 'Shopee')->get();
-        $shopee = new ShopeeService();
-
-
-        if (!$stores) {
-            return response()->json(['error' => 'Shopee store not found.'], 404);
+        if ($stores->isEmpty()) {
+            Log::info('No Shopee stores found');
+            return;
         }
 
-        $accessToken = $shopee->ensureValidToken($stores);
-
+        $shopee = new ShopeeService();
+        $now = Carbon::now('UTC');
+        $startTime = $now->copy()->subHours(1);
 
         foreach ($stores as $store) {
-            $accessToken = $shopee->ensureValidToken($store);
-            $now = Carbon::now('UTC');
-            $oneMinutesAgo = $now->copy()->subMinutes(1); // Ambil pesanan dari 1 menit terakhir
+            try {
+                $accessToken = $shopee->ensureValidToken($store);
 
-            $orders = $shopee->getOrderList(
-                $accessToken,
-                (string) $store->shopee_shop_id,
-                $oneMinutesAgo->timestamp,
-                $now->timestamp
-            ); // Ambil semua order terkini
-
-            foreach ($orders['response']['order_list'] as $order) {
-                $orderSn = $order['order_sn'];
-                $orderDetail = $shopee->getOrderDetails($store, $orderSn);
-                $escrowResponse = $shopee->getEscrowDetail($store, $orderSn);
-                $escrow = $escrowResponse['response'] ?? [];
-
-                Order::updateOrCreate(
-                    ['order_sn' => $orderSn],
-                    [
-                        'order_status' => $orderDetail['order_status'] ?? null,
-                        'order_time'   => isset($orderDetail['create_time']) ? Carbon::createFromTimestamp($orderDetail['create_time']) : now(),
-                        'cod'          => $orderDetail['cod'] ?? null,
-                        'ship_by_date' => isset($orderDetail['ship_by_date']) ? Carbon::createFromTimestamp($orderDetail['ship_by_date']) : now(),
-                        'message_to_seller' => $orderDetail['message_to_seller'] ?? null,
-
-                        // escrow fields
-                        'order_selling_price' => $escrow['order_income']['order_selling_price'] ?? null,
-                        'escrow_amount' => $escrow['order_income']['escrow_amount'] ?? null,
-                        'escrow_amount_after_adjustment' => $escrow['order_income']['escrow_amount_after_adjusment'] ?? null,
-                        'quantity_purchased' => $escrow['order_income']['items'][0]['quantity_purchased'] ?? null,
-                        'item_id' => $escrow['order_income']['items'][0]['item_id'] ?? 0,
-                    ]
+                $orders = $shopee->getOrderList(
+                    $accessToken,
+                    (string) $store->shopee_shop_id,
+                    $startTime->timestamp,
+                    $now->timestamp
                 );
+
+                if (empty($orders['response']['order_list'])) {
+                    Log::info("No orders found for store {$store->id}");
+                    continue;
+                }
+
+                $orderSnList = array_column($orders['response']['order_list'], 'order_sn');
+                $chunks = array_chunk($orderSnList, 50);
+
+                foreach ($chunks as $chunk) {
+                    $detailsResponse = $shopee->getOrderDetails($store, $chunk);
+
+                    if (empty($detailsResponse['response']['order_list'])) {
+                        Log::warning("No order details for store {$store->id}");
+                        continue;
+                    }
+
+                    foreach ($detailsResponse['response']['order_list'] as $detail) {
+                        try {
+                            $escrowResponse = $shopee->getEscrowDetail($store, $detail['order_sn']);
+                            $escrow = $escrowResponse['response'] ?? [];
+                            $firstItem = $escrow['order_income']['items'][0] ?? null;
+
+                            $orderModel = Order::updateOrCreate(
+                                ['order_sn' => $detail['order_sn']],
+                                [
+                                    'store_id' => $store->id,
+                                    'booking_sn' => $detail['booking_sn'] ?? null,
+                                    'order_status' => $detail['order_status'] ?? null,
+                                    'order_time' => isset($detail['create_time'])
+                                        ? Carbon::createFromTimestamp($detail['create_time'])
+                                        : now(),
+                                    'cod' => $detail['cod'] ?? null,
+                                    'ship_by_date' => isset($detail['ship_by_date'])
+                                        ? Carbon::createFromTimestamp($detail['ship_by_date'])
+                                        : null,
+                                    'message_to_seller' => $detail['message_to_seller'] ?? null,
+                                    'order_selling_price' => $escrow['order_income']['order_selling_price'] ?? null,
+                                    'escrow_amount' => $escrow['order_income']['escrow_amount'] ?? null,
+                                    'escrow_amount_after_adjustment' => $escrow['order_income']['escrow_amount_after_adjustment'] ?? null,
+                                    'quantity_purchased' => $firstItem['quantity_purchased'] ?? null,
+                                    'item_id' => $firstItem['item_id'] ?? null,
+                                ]
+                            );
+
+                            if (!empty($escrow['order_income']['items'])) {
+                                foreach ($escrow['order_income']['items'] as $escrowItem) {
+                                    \App\Models\OrderItem::updateOrCreate(
+                                        [
+                                            'order_id' => $orderModel->id,
+                                            'item_id' => $escrowItem['item_id']
+                                        ],
+                                        [
+                                            'item_name' => $escrowItem['item_name'] ?? null,
+                                            'quantity_purchased' => $escrowItem['quantity_purchased'] ?? 0,
+                                            'price' => $escrowItem['selling_price'] ?? 0,
+
+                                            // model fields
+                                            'model_name' => $detail['item_list'][0]['model_name'] ?? null,
+
+                                        ]
+                                    );
+                                }
+                            }
+
+                            event(new OrderCreated($orderModel));
+                        } catch (\Throwable $inner) {
+                            Log::error("Error saving order_sn {$detail['order_sn']}", [
+                                'message' => $inner->getMessage(),
+                                'store_id' => $store->id
+                            ]);
+                            continue;
+                        }
+                    }
+                }
+
+                Log::info("Sync finished for store {$store->id}");
+            } catch (\Throwable $e) {
+                Log::error("Error syncing store {$store->id}", [
+                    'message' => $e->getMessage()
+                ]);
+                // jangan throw biar job tetap dianggap sukses untuk store lain
+                continue;
             }
         }
+
+        Log::info('SyncShopeeOrderJob finished', ['time' => now()]);
+    }
+
+    public function failed(\Throwable $exception)
+    {
+        Log::critical("SyncShopeeOrderJob failed permanently", [
+            'message' => $exception->getMessage()
+        ]);
     }
 }
